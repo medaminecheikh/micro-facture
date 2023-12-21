@@ -1,5 +1,6 @@
 package com.administration.controller;
 
+import com.administration.dto.EncaissRequestDTO;
 import com.administration.dto.EncaissResponseDTO;
 import com.administration.dto.EncaissUpdateDTO;
 import com.administration.entity.Encaissement;
@@ -16,6 +17,8 @@ import javax.persistence.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+
 @RestController
 @AllArgsConstructor
 @Slf4j
@@ -23,16 +26,16 @@ public class EncaissementController {
     private IEncaissService encaissService;
 
     @PostMapping("/encaissement")
-    public ResponseEntity<Encaissement> addEncaiss(@RequestBody Encaissement encaissement) {
+    public ResponseEntity<Encaissement> addEncaiss(@RequestBody EncaissRequestDTO encaissement) {
         Encaissement addedEncaissement = encaissService.addEncaiss(encaissement);
         return ResponseEntity.status(HttpStatus.CREATED).body(addedEncaissement);
     }
 
     @PostMapping("/addlistencaissement")
-    public ResponseEntity<?> addlistEncaiss(@RequestBody List<Encaissement> encaissements) {
+    public ResponseEntity<?> addlistEncaiss(@RequestBody List<EncaissRequestDTO> encaissements) {
         try {
             List<Encaissement> encaissResponseDTOS=new ArrayList<>();
-            for (Encaissement encaissement : encaissements) {
+            for (EncaissRequestDTO encaissement : encaissements) {
                 var x= encaissService.addEncaiss(encaissement);
                 encaissResponseDTOS.add(x);
             }
@@ -51,23 +54,43 @@ public class EncaissementController {
         EncaissResponseDTO encaissement = encaissService.getEncaissById(id);
         return ResponseEntity.ok(encaissement);
     }
+    @GetMapping("/encaissement/forcaisse/{id}")
+    public ResponseEntity<List<EncaissResponseDTO>> getEncaissForCaisseById(@PathVariable String id) {
+        try {
+            List<EncaissResponseDTO> encaissement = encaissService.getEncaissForCaisseById(id);
+            return ResponseEntity.ok(encaissement);
+        } catch (NoSuchElementException e) {
+            log.error("Caisse not found for id: {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        } catch (Exception e) {
+            log.error("Error retrieving encaissement for caisse id {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
 
     @GetMapping("/Byfacture/{idFact}")
     public ResponseEntity<List<EncaissResponseDTO>> getEncaissementByFacture(@PathVariable String idFact) {
-        List<EncaissResponseDTO> encaissements = encaissService.getEncaissementByFacture(idFact);
-        return ResponseEntity.ok(encaissements);
+        try {
+            List<EncaissResponseDTO> encaissements = encaissService.getEncaissementByFacture(idFact);
+            return ResponseEntity.ok(encaissements);
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
     }
 
-    @GetMapping("/Byuser/{idUser}")
-    public ResponseEntity<List<Encaissement>> getEncaissementByUser(@PathVariable String idUser) {
-        List<Encaissement> encaissements = encaissService.getEncaissementByUser(idUser);
-        return ResponseEntity.ok(encaissements);
-    }
+
 
     @GetMapping("/Bycaisse/{idCaisse}")
     public ResponseEntity<List<EncaissResponseDTO>> getEncaissementByCaisse(@PathVariable String idCaisse) {
-        List<EncaissResponseDTO> encaissements = encaissService.getEncaissementByCaisse(idCaisse);
-        return ResponseEntity.ok(encaissements);
+        try {
+            log.info("BY CAISSE called");
+            List<EncaissResponseDTO> encaissements = encaissService.getEncaissementByCaisse(idCaisse);
+            return ResponseEntity.ok(encaissements);
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
     }
 
     @GetMapping("/Allencaissement")
@@ -159,7 +182,7 @@ public class EncaissementController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/affectEncaisseToCaisse/{idEncaiss}/{idCai}")
+    @PutMapping("/affectEncaisseToCaisse/{idEncaiss}/{idCai}")
     public ResponseEntity<?> affectEncaisseToCaisse(@PathVariable("idEncaiss") String idEncaiss,
                                                     @PathVariable("idCai") String idCai) {
 
@@ -167,9 +190,11 @@ public class EncaissementController {
             EncaissResponseDTO encaissResponseDTO = encaissService.affectEncaisseToCaisse(idEncaiss, idCai);
             return ResponseEntity.ok(encaissResponseDTO);
         } catch (EntityNotFoundException e) {
+            log.error(e.getMessage());
             // Entity not found, return 404 Not Found status
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         } catch (Exception e) {
+            log.error(e.getMessage());
             // Other errors, return 500 Internal Server Error status
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }

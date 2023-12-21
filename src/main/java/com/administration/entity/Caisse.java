@@ -1,5 +1,6 @@
 package com.administration.entity;
 
+import com.administration.dto.EncaissResponseDTO;
 import com.administration.dto.EttUpdateDTO;
 import com.administration.dto.UtilisateurUpdateDTO;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -22,5 +23,5 @@ public class Caisse implements Serializable {
     private String f_Actif;
     private UtilisateurUpdateDTO login;
     private EttUpdateDTO cod_ett;
-    private List<Encaissement> encaissements;
+    private List<EncaissResponseDTO> encaissements;
 }

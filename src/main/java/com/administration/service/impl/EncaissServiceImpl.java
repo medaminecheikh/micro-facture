@@ -1,17 +1,19 @@
 package com.administration.service.impl;
 
-import com.administration.dto.EncaissResponseDTO;
-import com.administration.dto.EncaissUpdateDTO;
-import com.administration.dto.FactureResponseDTO;
+import com.administration.dto.*;
 import com.administration.entity.*;
 import com.administration.openfeign.CaisseRestController;
 import com.administration.repo.*;
 import com.administration.service.IEncaissService;
+import com.administration.service.mappers.CaisseMappers;
 import com.administration.service.mappers.EncaissMapper;
+import feign.FeignException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,23 +27,26 @@ import java.util.stream.Collectors;
 @Slf4j
 public class EncaissServiceImpl implements IEncaissService {
     EncaissMapper encaissMapper;
+    CaisseMappers caisseMappers;
     EncaissRepo encaissRepo;
     CaisseRestController caisseRestController;
     FactureRepo factureRepo;
 
 
     @Override
-    public Encaissement addEncaiss(Encaissement encaissement) {
+    public Encaissement addEncaiss(EncaissRequestDTO encaissement) {
 
         encaissement.setDateEnc(new Date());
-        encaissRepo.save(encaissement);
-        return encaissement;
+        Encaissement encaissementSAVE = encaissMapper.EncaissRequestDTOEncaiss(encaissement);
+        encaissRepo.save(encaissementSAVE);
+        return encaissementSAVE;
     }
 
     @Override
     public EncaissResponseDTO getEncaissById(String id) {
         Encaissement encaissement = encaissRepo.findById(id).orElse(null);
         if (encaissement != null) {
+            encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
             return encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
         } else {
             return null;
@@ -57,6 +62,7 @@ public class EncaissServiceImpl implements IEncaissService {
             if (encaissements != null) {
                 List<EncaissResponseDTO> encaissResponseDTOs = new ArrayList<>();
                 encaissements.forEach(encaissement -> {
+                    encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
                     EncaissResponseDTO responseDTO = encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
                     encaissResponseDTOs.add(responseDTO);
                 });
@@ -67,40 +73,28 @@ public class EncaissServiceImpl implements IEncaissService {
         return Collections.emptyList();
     }
 
-    @Override
-    public List<Encaissement> getEncaissementByUser(String idUser) {
-       /* Utilisateur utilisateur = utilisateurRepo.findById(idUser).orElse(null);
-        List<Encaissement> encaissements = new ArrayList<>();
-
-        if (utilisateur != null) {
-            List<InfoFacture> factures = utilisateur.getFactures();
-            for (InfoFacture facture : factures) {
-                List<Encaissement> factureEncaissements = facture.getEncaissements();
-                encaissements.addAll(factureEncaissements);
-            }
-        }
-
-        return encaissements;*/
-        return null;
-    }
 
     @Override
     public List<EncaissResponseDTO> getEncaissementByCaisse(String idCaisse) {
-        Caisse caisse = caisseRestController.getCaisse(idCaisse).getBody();
-        if (caisse != null) {
-            return caisse.getEncaissements().stream().map(
-                    encaissement -> encaissMapper.EncaissTOEncaissResponseDTO(encaissement)
-
-            ).collect(Collectors.toList());
+        try {
+            CaisseResponseDTO caisse = caisseRestController.getCaisseById(idCaisse).getBody();
+            if (caisse != null) {
+                List<Encaissement> encaissement = encaissRepo.findByCaisse(idCaisse);
+                return encaissement.stream().map(encaissement1 -> encaissMapper.EncaissTOEncaissResponseDTO(encaissement1))
+                        .collect(Collectors.toList());
+            }
+            return Collections.emptyList();
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            throw new RuntimeException(e);
         }
-        return Collections.emptyList();
     }
 
     @Override
     public void updateEncaisse(EncaissUpdateDTO dto) {
         Encaissement encaissement = encaissRepo.findById(dto.getIdEncaissement()).orElse(null);
         if (encaissement != null) {
-            encaissMapper.updateEncaissFromDto(dto,encaissement);
+            encaissMapper.updateEncaissFromDto(dto, encaissement);
             encaissRepo.save(encaissement);
         }
     }
@@ -112,15 +106,15 @@ public class EncaissServiceImpl implements IEncaissService {
 
 
     @Override
-    public EncaissResponseDTO affectEncaisseToCaisse(String idEncaiss,String idCai) {
+    public EncaissResponseDTO affectEncaisseToCaisse(String idEncaiss, String idCai) {
         try {
             Encaissement encaissement = encaissRepo.findById(idEncaiss)
                     .orElseThrow(() -> new EntityNotFoundException("Encaissement not found with id: " + idEncaiss));
-            Caisse caisse = caisseRestController.getCaisse(idCai).getBody();
+            CaisseResponseDTO caisse = caisseRestController.getCaisseById(idCai).getBody();
 
-                if (caisse != null) {
-                    encaissement.setCaisseId(caisse.getIdCaisse());
-                }
+            if (caisse != null) {
+                encaissement.setCaisseId(caisse.getIdCaisse());
+            }
             encaissRepo.save(encaissement);
 
             return encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
@@ -130,17 +124,17 @@ public class EncaissServiceImpl implements IEncaissService {
             // You might want to throw a custom exception here or handle it in another way.
             throw new RuntimeException("Failed to affect caisse to encaissement: " + e.getMessage());
         }
-
     }
-
 
 
     @Override
     public List<EncaissResponseDTO> getAllEncaissement() {
-        List<Encaissement> encaissementList= encaissRepo.findAll();
-        return encaissementList.stream().map(encaissement -> encaissMapper.EncaissTOEncaissResponseDTO(encaissement)).collect(Collectors.toList());
+        List<Encaissement> encaissementList = encaissRepo.findAll();
+        return encaissementList.stream()
+                .map(encaissement -> {
+                    encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
+                    return encaissMapper.EncaissTOEncaissResponseDTO(encaissement);}).collect(Collectors.toList());
     }
-
 
 
     @Override
@@ -152,16 +146,18 @@ public class EncaissServiceImpl implements IEncaissService {
         calendar.add(Calendar.MONTH, 1);
         calendar.add(Calendar.DAY_OF_MONTH, -1);
         Date endDate = calendar.getTime();
-        List<Encaissement> encaissementList =encaissRepo.findEncaissementsForCaisseInCurrentMonth(caisseId, startDate, endDate);
+        List<Encaissement> encaissementList = encaissRepo.findEncaissementsForCaisseInCurrentMonth(caisseId, startDate, endDate);
         // Fetch the list of Encaissements for the specified Caisse within the current month
         return encaissementList.stream().map(encaissement -> encaissMapper.EncaissTOEncaissResponseDTO(encaissement)).collect(Collectors.toList());
     }
+
     @Override
     public List<EncaissResponseDTO> searchEncaiss(String produit, String identifiant, String modePaiement, String typeIdent, Double montantEnc, String refFacture, PageRequest pageable) {
         Page<Encaissement> encaissements = encaissRepo.searchEncaiss(produit, identifiant, modePaiement, typeIdent, montantEnc, refFacture, pageable);
         long count = encaissements.getTotalElements();
         return encaissements.stream()
                 .map(encaissement -> {
+                    encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
                     EncaissResponseDTO dto = encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
                     dto.setTotalElements(count);
                     return dto;
@@ -175,6 +171,7 @@ public class EncaissServiceImpl implements IEncaissService {
         long count = encaissements.getTotalElements();
         return encaissements.stream()
                 .map(encaissement -> {
+                    encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
                     EncaissResponseDTO dto = encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
                     dto.setTotalElements(count);
                     return dto;
@@ -188,6 +185,7 @@ public class EncaissServiceImpl implements IEncaissService {
         long count = encaissements.getTotalElements();
         return encaissements.stream()
                 .map(encaissement -> {
+                    encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
                     EncaissResponseDTO dto = encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
                     dto.setTotalElements(count);
                     return dto;
@@ -201,6 +199,7 @@ public class EncaissServiceImpl implements IEncaissService {
         long count = encaissements.getTotalElements();
         return encaissements.stream()
                 .map(encaissement -> {
+                   encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
                     EncaissResponseDTO dto = encaissMapper.EncaissTOEncaissResponseDTO(encaissement);
                     dto.setTotalElements(count);
                     return dto;
@@ -212,7 +211,57 @@ public class EncaissServiceImpl implements IEncaissService {
     public List<EncaissResponseDTO> encaissYear() {
         List<Encaissement> encaissements = encaissRepo.getEncaissementYearly();
         return encaissements.stream()
-                .map(encaissement -> encaissMapper.EncaissTOEncaissResponseDTO(encaissement))
+                .map(encaissement -> {
+                    encaissement.setCaisse(getCaisseForEncaissement(encaissement.getCaisseId()));
+                    return encaissMapper.EncaissTOEncaissResponseDTO(encaissement);})
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<EncaissResponseDTO> getEncaissForCaisseById(String id) {
+        try {
+            List<Encaissement> encaissements = encaissRepo.findByCaisse(id);
+            log.info("encaissements: {}", encaissements);
+            return encaissements.stream()
+                    .map(encaissement -> encaissMapper.EncaissTOEncaissResponseDTO(encaissement))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error retrieving encaissements for caisse id {}: {}", id, e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+    public Caisse getCaisseForEncaissement(String caisseId) {
+        try {
+            ResponseEntity<CaisseResponseDTO> responseEntity = caisseRestController.getCaisseById(caisseId);
+
+            if (responseEntity.getStatusCode().is2xxSuccessful()) {
+                CaisseResponseDTO caisseResponseDTO = responseEntity.getBody();
+
+                if (caisseResponseDTO != null) {
+                    return caisseMappers.CaisseResponseDTOTOCaisse(caisseResponseDTO);
+                } else {
+                    // Handle the case where the response body is null
+                    log.warn("CaisseResponseDTO is null for id: {}", caisseId);
+                    return null;
+                }
+            } else if (responseEntity.getStatusCode() == HttpStatus.NOT_FOUND) {
+                // Caisse not found, return null
+                return null;
+            } else {
+                // Handle non-successful status code
+                throw new RuntimeException("Failed to get caisse for encaissement. HTTP Status: " + responseEntity.getStatusCodeValue());
+            }
+        } catch (FeignException e) {
+            // Handle Feign client exceptions (e.g., communication errors)
+            // Log the error for debugging purposes
+            log.error("Feign client error while getting caisse for encaissement: {}", e.getMessage());
+            throw new RuntimeException("Failed to get caisse for encaissement. Error: " + e.getMessage());
+        } catch (Exception e) {
+            // Handle other exceptions
+            // Log the error for debugging purposes
+            log.error("Error getting caisse for encaissement: {}", e.getMessage());
+            throw new RuntimeException("Failed to get caisse for encaissement. Error: " + e.getMessage());
+        }
+    }
+
 }

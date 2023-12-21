@@ -12,6 +12,9 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 @Mapper(componentModel = "spring")
 public interface CaisseMappers {
     CaisseResponseDTO CaisseTOCaisseResponseDTO(Caisse caisse);
+
+    Caisse CaisseResponseDTOTOCaisse(CaisseResponseDTO caisse);
+
     Caisse CaisseRequestDTOCaisse(CaisseRequestDTO caisseRequestDTO);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

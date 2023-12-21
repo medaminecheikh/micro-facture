@@ -1,5 +1,6 @@
 package com.administration.service;
 
+import com.administration.dto.EncaissRequestDTO;
 import com.administration.dto.EncaissResponseDTO;
 import com.administration.dto.EncaissUpdateDTO;
 import com.administration.dto.FactureResponseDTO;
@@ -9,12 +10,12 @@ import org.springframework.data.domain.PageRequest;
 import java.util.List;
 
 public interface IEncaissService {
-    Encaissement addEncaiss(Encaissement encaissement);
+    Encaissement addEncaiss(EncaissRequestDTO encaissement);
 
     EncaissResponseDTO getEncaissById(String id);
 
     List<EncaissResponseDTO> getEncaissementByFacture(String idFact);
-    List<Encaissement> getEncaissementByUser(String idUser);
+
     List<EncaissResponseDTO> getEncaissementByCaisse(String idCaisse);
     List<EncaissResponseDTO> getEncaissementsForCaisseInCurrentMonth(String caisseId);
     void updateEncaisse(EncaissUpdateDTO dto);
@@ -31,4 +32,5 @@ public interface IEncaissService {
 
     List<EncaissResponseDTO> encaissYear();
 
+    List<EncaissResponseDTO> getEncaissForCaisseById(String id);
 }

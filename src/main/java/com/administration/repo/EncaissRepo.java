@@ -14,12 +14,16 @@ import java.util.List;
 @Repository
 public interface EncaissRepo extends JpaRepository<Encaissement,String> {
     List<Encaissement> findByDateEncBetween(Date startDate, Date endDate);
+    @Query("SELECT e FROM Encaissement e WHERE e.caisseId = :caisseId")
+    List<Encaissement> findByCaisse(@Param("caisseId")String caisseId);
 
-    @Query("SELECT e FROM Encaissement e WHERE e.dateEnc BETWEEN :startDate AND :endDate")
+    @Query("SELECT e FROM Encaissement e WHERE e.caisseId = :caisseId " +
+            "AND e.dateEnc BETWEEN :startDate AND :endDate")
     List<Encaissement> findEncaissementsForCaisseInCurrentMonth(
             @Param("caisseId") String caisseId,
             @Param("startDate") Date startDate,
-            @Param("endDate") Date endDate);
+            @Param("endDate") Date endDate
+    );
 
     @Query("SELECT i FROM Encaissement i WHERE " +
             "(:produit IS NULL OR LOWER(i.produit) LIKE LOWER(CONCAT('%', :produit, '%'))) " +
