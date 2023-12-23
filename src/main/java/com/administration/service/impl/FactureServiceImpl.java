@@ -103,6 +103,7 @@ public class FactureServiceImpl implements IFactureService {
     }
 
 
+
     @Override
     public void removeEncaissementFromFacture(String encaissementId, String factureId) {
         Encaissement encaissement = encaissRepo.findById(encaissementId).orElse(null);
